@@ -1,0 +1,74 @@
+name: immich
+
+services:
+  immich-server:
+    container_name: immich_server
+    image: ghcr.io/immich-app/immich-server:${IMMICH_VERSION:-release}
+    restart: always
+    depends_on:
+      - redis
+      - database
+    ports:
+      - "2283:2283"
+    volumes:
+      # Media uploads location (host path)
+      - ${UPLOAD_LOCATION}:/data
+      - /etc/localtime:/etc/localtime:ro
+    environment:
+      # Core
+      TZ: ${TZ:-UTC}
+      IMMICH_VERSION: ${IMMICH_VERSION:-release}
+
+      # Database
+      DB_HOSTNAME: database
+      DB_PORT: 5432
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_DATABASE_NAME: ${DB_DATABASE_NAME}
+
+      # Redis
+      REDIS_HOSTNAME: redis
+      REDIS_PORT: 6379
+
+      # URLs / security
+      IMMICH_PUBLIC_URL: ${IMMICH_PUBLIC_URL}
+
+    healthcheck:
+      disable: false
+
+  immich-machine-learning:
+    container_name: immich_machine_learning
+    image: ghcr.io/immich-app/immich-machine-learning:${IMMICH_VERSION:-release}
+    restart: always
+    volumes:
+      - model-cache:/cache
+    environment:
+      TZ: ${TZ:-UTC}
+      IMMICH_VERSION: ${IMMICH_VERSION:-release}
+    healthcheck:
+      disable: false
+
+  redis:
+    container_name: immich_redis
+    image: docker.io/valkey/valkey:9
+    restart: always
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+
+  database:
+    container_name: immich_postgres
+    image: ghcr.io/immich-app/postgres:14-vectorchord0.4.3-pgvectors0.2.0
+    restart: always
+    shm_size: 128mb
+    environment:
+      POSTGRES_USER: ${DB_USERNAME}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_DATABASE_NAME}
+      POSTGRES_INITDB_ARGS: "--data-checksums"
+      # Optional if DB is on HDD
+      # DB_STORAGE_TYPE: HDD
+    volumes:
+      - ${DB_DATA_LOCATION}:/var/lib/postgresql/data
+
+volumes:
+  model-cache:
